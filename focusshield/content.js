@@ -1,0 +1,1869 @@
+// FocusShield Content Script - High Performance CSS Injection Method
+(function () {
+  const defaultSettings = {
+    masterToggle: true,
+    youtube: {
+      enabled: true,
+      blockFullSite: false,
+      sidebar: true,
+      comments: true,
+      feed: true,
+      shorts: true,
+      autoplay: true
+    },
+    facebook: {
+      enabled: true,
+      blockFullSite: false,
+      feed: true,
+      stories: true,
+      notifications: true,
+      reels: true,
+      messenger: true,
+      comments: true,
+      friends: true,
+      groups: true,
+      pages: true
+    },
+    instagram: {
+      enabled: true,
+      blockFullSite: false,
+      feed: true,
+      reels: true,
+      explore: true,
+      stories: true,
+      sponsored: true,
+      shopping: true,
+      messages: true,
+      notifications: true,
+      comments: true
+    },
+    reddit: {
+      enabled: true,
+      blockFullSite: false,
+      promoted: true,
+      communities: true,
+      search: true,
+      premium: true,
+      trending: true,
+      popularAll: true,
+      commentsSection: true,
+      chatDMs: true
+    },
+    tiktok: {
+      enabled: true,
+      blockFullSite: false,
+      foryou: true,
+      following: true,
+      suggested: true,
+      live: true,
+      shop: true,
+      badges: true,
+      comments: true,
+      search: true,
+      upload: true
+    },
+    twitter: {
+      enabled: true,
+      blockFullSite: false,
+      trending: true,
+      whotofollow: true,
+      promoted: true,
+      spaces: true,
+      messages: true,
+      explore: true,
+      communities: true,
+      notifications: true,
+      premium: true,
+      feed: true
+    },
+    customSites: []
+  };
+
+  function mergeWithDefaults(stored) {
+    const merged = { ...defaultSettings };
+    if (stored) {
+      if (stored.masterToggle !== undefined) merged.masterToggle = stored.masterToggle;
+      const platforms = ['youtube', 'facebook', 'instagram', 'reddit', 'tiktok', 'twitter'];
+      platforms.forEach(p => {
+        if (stored[p] && typeof stored[p] === 'object') {
+          merged[p] = { ...defaultSettings[p], ...stored[p] };
+        }
+      });
+      if (Array.isArray(stored.customSites)) merged.customSites = stored.customSites;
+      if (stored.previousPlatformStates) merged.previousPlatformStates = stored.previousPlatformStates;
+      if (stored.previousCustomSiteStates) merged.previousCustomSiteStates = stored.previousCustomSiteStates;
+    }
+    return merged;
+  }
+
+  let platformInterval = null;
+
+  function injectDOMBlockScreen(siteLabel) {
+    if (platformInterval) {
+      clearInterval(platformInterval);
+      platformInterval = null;
+    }
+
+    document.title = 'FocusShield - Site Blocked';
+
+    const quotes = [
+      "Your focus is your greatest currency. Spend it wisely.",
+      "The noise will always be there. The choice to listen is yours.",
+      "Distraction is temporary comfort; focus is lasting achievement.",
+      "One task. One focus. One step forward.",
+      "Silence the digital world to hear your own potential.",
+      "You do not need more time; you need more focus.",
+      "Every distraction is a request to delay your dreams.",
+      "Deep progress is made in quiet moments of concentration.",
+      "Guard your attention as if your future depends on it—because it does.",
+      "Great things are built in the absence of interruption.",
+      "Clarity of mind begins with the refusal of distractions.",
+      "A focused hour is worth more than a distracted day.",
+      "Choose the satisfaction of completion over the urge to check.",
+      "Energy flows where attention goes. Channel it deliberately.",
+      "Your goals are waiting on the other side of your focus.",
+      "Master your mind, or your notifications will master you.",
+      "The best work is done when the world is shut out.",
+      "Commit to the present task. Everything else can wait.",
+      "Focus is not about forcing attention; it is about releasing distraction.",
+      "Build your wall of focus. Let nothing break through."
+    ];
+    const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+
+    const overlay = document.createElement('div');
+    overlay.id = 'focusshield-block-overlay';
+    overlay.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.07) 0%, #09090b 80%), #09090b !important;
+      color: #f4f4f5 !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      z-index: 2147483647 !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+      padding: 32px 24px !important;
+      box-sizing: border-box !important;
+    `;
+
+    overlay.innerHTML = `
+      <div style="position: absolute !important; top: 32px !important; left: 40px !important; display: flex !important; align-items: center !important; gap: 8px !important; opacity: 0.6 !important; user-select: none !important;">
+        <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <span style="font-size: 14px !important; font-weight: 600 !important; color: #f4f4f5 !important; letter-spacing: -0.01em !important;">FocusShield</span>
+      </div>
+      <div style="width: 100% !important; max-width: 680px !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 36px !important; text-align: center !important;">
+        <div style="position: relative !important; width: 110px !important; height: 110px !important; display: flex !important; justify-content: center !important; align-items: center !important;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 72px !important; height: 72px !important; filter: drop-shadow(0 0 25px rgba(34, 197, 94, 0.4)) !important;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div style="text-align: center !important;">
+          <h1 style="font-size: 36px !important; font-weight: 800 !important; margin-bottom: 12px !important; letter-spacing: -0.03em !important; background: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%) !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; color: #fff !important; margin-top: 0 !important;">You're in Focus Mode</h1>
+          <p style="font-size: 16px !important; color: #71717a !important; font-weight: 400 !important; max-width: 500px !important; margin: 0 auto !important; line-height: 1.5 !important;">\${siteLabel} is blocked to keep you focused</p>
+        </div>
+        <div style="width: 100% !important; max-width: 600px !important; padding: 0 !important; margin: 12px 0 !important; text-align: center !important;">
+          <p style="font-size: 20px !important; font-style: italic !important; color: #d4d4d8 !important; line-height: 1.6 !important; font-weight: 400 !important; margin: 0 !important;">"\${randomQuote}"</p>
+        </div>
+      </div>
+    `;
+
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    if (document.body) {
+      document.body.style.setProperty('overflow', 'hidden', 'important');
+    }
+
+    const appendOverlay = () => {
+      if (document.getElementById('focusshield-block-overlay')) return;
+      document.documentElement.appendChild(overlay);
+    };
+
+    if (document.documentElement) {
+      appendOverlay();
+    } else {
+      document.addEventListener('DOMContentLoaded', appendOverlay);
+    }
+
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById('focusshield-block-overlay')) {
+        document.documentElement.appendChild(overlay);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true });
+  }
+
+  function runPlatformBackgroundChecks(settings) {
+    if (platformInterval) {
+      clearInterval(platformInterval);
+      platformInterval = null;
+    }
+
+    const hostname = window.location.hostname;
+
+    // Cleanup attribute if disabled/null
+    if (!settings || !settings.masterToggle || !settings.facebook || settings.facebook.enabled === false || !settings.facebook.feed) {
+      if (hostname.includes('facebook.com')) {
+        document.documentElement.removeAttribute('data-fs-fb-home');
+      }
+    }
+    if (!settings || !settings.masterToggle || !settings.twitter || settings.twitter.enabled === false || !settings.twitter.feed) {
+      if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+        document.documentElement.removeAttribute('data-fs-tw-home');
+      }
+    }
+    if (!settings || !settings.masterToggle || !settings.reddit || settings.reddit.enabled === false) {
+      if (hostname.includes('reddit.com')) {
+        document.documentElement.removeAttribute('data-fs-rd-popular');
+        document.documentElement.removeAttribute('data-fs-rd-all');
+        document.documentElement.removeAttribute('data-fs-rd-chat');
+        document.documentElement.removeAttribute('data-fs-rd-home');
+      }
+    }
+
+    if (!settings || !settings.masterToggle) return;
+
+    const platform = getPlatform(hostname);
+    if (platform && settings[platform] && settings[platform].blockFullSite === true) {
+      const blockedUrl = chrome.runtime.getURL('blocked.html') 
+        + '?site=' + encodeURIComponent(window.location.hostname)
+        + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+        + '&originalUrl=' + encodeURIComponent(window.location.href);
+      window.location.href = blockedUrl;
+      return;
+    }
+
+    // 1. YouTube checks (Autoplay disabler & Shorts blocker)
+    if (hostname.includes('youtube.com') && settings.youtube && settings.youtube.enabled !== false) {
+      const yt = settings.youtube;
+      const runYtChecks = () => {
+        if (yt.autoplay) {
+          const toggle = document.querySelector('.ytp-autonav-toggle-button');
+          if (toggle && toggle.getAttribute('aria-checked') === 'true') {
+            toggle.click();
+          }
+        }
+        if (yt.shorts && window.location.pathname.startsWith('/shorts')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('youtube.com/shorts')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+      };
+      runYtChecks();
+      platformInterval = setInterval(runYtChecks, 500);
+    }
+
+    // 2. Facebook checks (Reels, Messenger, Friends, Groups, Pages & Home Feed attribute)
+    if ((hostname.includes('facebook.com') || hostname.includes('messenger.com')) && settings.facebook && settings.facebook.enabled !== false) {
+      const fb = settings.facebook;
+      const runFbChecks = () => {
+        // Update home feed block class
+        const isFBHome = window.location.pathname === '/' || window.location.pathname === '/home.php';
+        if (fb.feed && isFBHome) {
+          document.documentElement.setAttribute('data-fs-fb-home', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-fb-home');
+        }
+
+        if (fb.reels && (window.location.pathname.startsWith('/reels') || window.location.pathname.startsWith('/reel'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('facebook.com/reels')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (fb.messenger && window.location.pathname.startsWith('/messages')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('facebook.com/messages')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (fb.friends && (window.location.pathname.startsWith('/friends') || window.location.pathname.startsWith('/friends/'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('facebook.com/friends')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (fb.groups && (window.location.pathname.startsWith('/groups') || window.location.pathname.startsWith('/groups/'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('facebook.com/groups')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (fb.pages && (window.location.pathname.startsWith('/pages') || window.location.pathname.startsWith('/pages/'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('facebook.com/pages')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+      };
+      runFbChecks();
+      platformInterval = setInterval(runFbChecks, 500);
+    }
+
+    // 3. Twitter/X checks (Messages, Explore, Communities, Notifications & Home Feed blocker)
+    if ((hostname.includes('twitter.com') || hostname.includes('x.com')) && settings.twitter && settings.twitter.enabled !== false) {
+      const tw = settings.twitter;
+      const runTwChecks = () => {
+        // Home Feed blocker class toggler
+        const isTwHome = window.location.pathname === '/home' || window.location.pathname === '/';
+        if (tw.feed && isTwHome) {
+          document.documentElement.setAttribute('data-fs-tw-home', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-tw-home');
+        }
+
+        if (tw.messages && (window.location.pathname.startsWith('/messages') || window.location.pathname.startsWith('/chat'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('x.com/messages')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        const isExploreOrSearch = window.location.pathname.startsWith('/explore') || 
+                                  window.location.pathname.startsWith('/search') || 
+                                  window.location.pathname.startsWith('/trends') || 
+                                  window.location.pathname.includes('/trends') || 
+                                  window.location.pathname.startsWith('/i/trends');
+        if ((tw.explore || tw.feed) && isExploreOrSearch) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('x.com/explore')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (tw.communities && window.location.pathname.includes('/communities')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('x.com/communities')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+        if (tw.notifications && window.location.pathname.startsWith('/notifications')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('x.com/notifications')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+        }
+      };
+      runTwChecks();
+      platformInterval = setInterval(runTwChecks, 500);
+    }
+
+    // 3.5. Instagram checks (Reels, Explore, Shop redirection & In-feed content cleaners)
+    if (hostname.includes('instagram.com') && settings.instagram && settings.instagram.enabled !== false) {
+      const ig = settings.instagram;
+      const runIgChecks = () => {
+        const path = window.location.pathname.toLowerCase();
+        
+        // Check Login State and Home Feed
+        const isIgHome = path === '/' || path === '/home';
+        const isLoggedIn = !!(
+          document.querySelector('svg[aria-label="Home"]') || 
+          document.querySelector('a[href^="/direct/"]') || 
+          document.querySelector('a[href^="/explore/"]') || 
+          document.querySelector('a[href*="/reels/"]') || 
+          document.querySelector('[role="navigation"]') ||
+          document.querySelector('main [role="menu"]')
+        );
+
+        if (ig.feed && isIgHome && isLoggedIn) {
+          document.documentElement.setAttribute('data-fs-ig-home', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-ig-home');
+        }
+
+        // Redirects
+        if (ig.reels && (path.startsWith('/reels') || path.startsWith('/reel'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('instagram.com/reels')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (ig.explore && path.startsWith('/explore')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('instagram.com/explore')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (ig.shopping && (path.startsWith('/shop') || path.startsWith('/shopping'))) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('instagram.com/shop')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (ig.messages && path.startsWith('/direct')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('instagram.com/direct')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (ig.stories && path.startsWith('/stories')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('instagram.com/stories')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+
+        // DOM Pruning for Sponsored Content
+        if (ig.sponsored) {
+          // 1. Target feed posts (articles)
+          document.querySelectorAll('article').forEach(article => {
+            // Check Sponsored
+            const adKeywords = [
+              'sponsored', 'sponsorisé', 'gesponsert', 'sponsorizzato', 'patrocinado', 'реклама', 
+              'sponsrad', 'sponsoreret', 'sponsoroitu', 'reklama', 'sponsorlu', '广告', '赞助', '贊助'
+            ];
+            const ctaKeywords = [
+              'learn more', 'shop now', 'sign up', 'book now', 'download', 'watch more', 'apply now', 
+              'subscribe', 'install now', 'order now', 'play game'
+            ];
+            
+            const headerAndLinksText = Array.from(article.querySelectorAll('header, a, button'))
+              .map(el => (el.innerText || el.textContent || '').trim().toLowerCase())
+              .join(' ');
+            
+            const isSponsored = adKeywords.some(kw => headerAndLinksText.includes(kw)) ||
+                                ctaKeywords.some(kw => headerAndLinksText.includes(kw)) ||
+                                article.querySelector('use[href*="Sponsored"]') || 
+                                article.querySelector('svg aria-label*="Sponsored"') ||
+                                article.querySelector('a[href*="/about/ads"]');
+                                
+            if (isSponsored) {
+              article.style.setProperty('display', 'none', 'important');
+            }
+          });
+        }
+
+        // Hide navigation links and stories in JS
+        if (ig.reels) {
+          document.querySelectorAll('div').forEach(div => {
+            const txt = (div.innerText || div.textContent || '').trim().toLowerCase();
+            if (txt === 'reels' || txt === 'suggested reels') {
+              let container = div;
+              for (let i = 0; i < 4; i++) {
+                if (container.parentElement) container = container.parentElement;
+              }
+              if (container && container !== document.body) {
+                container.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+          document.querySelectorAll('a[href^="/reels"], a[href^="/reel"], a[href*="/reels/"], a[href*="/reel/"], a[aria-label*="Reels"], a[aria-label*="reels"], a:has([aria-label*="Reels"]), a:has([aria-label*="reels"]), div[role="button"]:has([aria-label*="Reels"]), div[role="button"]:has([aria-label*="reels"]), svg[aria-label*="Reels"], svg[aria-label*="reels"]').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+        if (ig.explore) {
+          document.querySelectorAll('a[href^="/explore"], a[href*="/explore/"], a[aria-label*="Explore"], a[aria-label*="explore"], a:has([aria-label*="Explore"]), a:has([aria-label*="explore"]), div[role="button"]:has([aria-label*="Explore"]), div[role="button"]:has([aria-label*="explore"]), svg[aria-label*="Explore"], svg[aria-label*="explore"]').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+        if (ig.shopping) {
+          document.querySelectorAll('a[href="/shop/"], a[href*="/shop"], a[href*="/shopping"], a[aria-label*="Shop"], a:has([aria-label*="Shop"]), a:has([aria-label*="shop"]), svg[aria-label*="Shop"]').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+        if (ig.messages) {
+          document.querySelectorAll('a[href*="/direct"], a[href*="direct"], svg[aria-label*="Messenger"], svg[aria-label*="Direct"], svg[aria-label*="Messages"], [aria-label*="Messenger"], [aria-label*="Direct"], [aria-label*="Messages"]').forEach(el => {
+            let navItem = el;
+            if (el.tagName === 'SVG' || el.tagName === 'SPAN' || el.tagName === 'DIV') {
+              let parent = el.parentElement;
+              let depth = 0;
+              while (parent && parent !== document.body && depth < 4) {
+                if (parent.tagName === 'A' || parent.getAttribute('role') === 'link' || parent.getAttribute('role') === 'button') {
+                  navItem = parent;
+                  break;
+                }
+                parent = parent.parentElement;
+                depth++;
+              }
+            }
+            if (navItem) {
+              navItem.style.setProperty('display', 'none', 'important');
+              if (navItem.parentElement && navItem.parentElement.tagName === 'DIV' && navItem.parentElement.children.length === 1) {
+                navItem.parentElement.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+        }
+        if (ig.notifications) {
+          document.querySelectorAll('a[href*="notifications"], svg[aria-label*="Notifications"], svg[aria-label*="Activity"], svg[aria-label*="Heart"], [aria-label*="Notifications"], [aria-label*="Activity"], [aria-label*="Heart"]').forEach(el => {
+            let navItem = el;
+            if (el.tagName === 'SVG' || el.tagName === 'SPAN' || el.tagName === 'DIV') {
+              let parent = el.parentElement;
+              let depth = 0;
+              while (parent && parent !== document.body && depth < 4) {
+                if (parent.tagName === 'A' || parent.getAttribute('role') === 'link' || parent.getAttribute('role') === 'button') {
+                  navItem = parent;
+                  break;
+                }
+                parent = parent.parentElement;
+                depth++;
+              }
+            }
+            if (navItem) {
+              navItem.style.setProperty('display', 'none', 'important');
+              if (navItem.parentElement && navItem.parentElement.tagName === 'DIV' && navItem.parentElement.children.length === 1) {
+                navItem.parentElement.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+        }
+        if (ig.stories) {
+          document.querySelectorAll('a[href*="/stories/"]').forEach(link => {
+            link.style.setProperty('display', 'none', 'important');
+            let parent = link.parentElement;
+            let depth = 0;
+            while (parent && parent !== document.body && depth < 4) {
+              if (parent.tagName === 'LI' || parent.getAttribute('role') === 'listitem' || parent.getAttribute('role') === 'menuitem') {
+                parent.style.setProperty('display', 'none', 'important');
+                break;
+              }
+              parent = parent.parentElement;
+              depth++;
+            }
+          });
+          
+          document.querySelectorAll('ul, div[role="menu"]').forEach(container => {
+            if (container.querySelector('a[href*="/stories/"]')) {
+              container.style.setProperty('display', 'none', 'important');
+              let parent = container.parentElement;
+              if (parent && parent !== document.body && parent.tagName !== 'MAIN' && parent.tagName !== 'SECTION' && parent.tagName !== 'BODY') {
+                parent.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+
+          document.querySelectorAll('[aria-label*="Stories"], [aria-label*="stories"]').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+        if (ig.comments) {
+          // Hide comment inputs/forms
+          document.querySelectorAll('form:has(textarea), textarea[placeholder*="comment"], textarea[placeholder*="Comment"]').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+          
+          // Hide comment buttons (bubble icons)
+          document.querySelectorAll('svg, [aria-label*="Comment"], [aria-label*="comment"]').forEach(el => {
+            const label = el.getAttribute('aria-label') || '';
+            const hasCommentLabel = label.toLowerCase().includes('comment');
+            let isCommentEl = hasCommentLabel;
+            if (el.tagName === 'SVG') {
+              const titleEl = el.querySelector('title');
+              if (titleEl && titleEl.textContent.toLowerCase().includes('comment')) {
+                isCommentEl = true;
+              }
+            }
+
+            if (isCommentEl) {
+              el.style.setProperty('display', 'none', 'important');
+              let parent = el.parentElement;
+              let depth = 0;
+              while (parent && parent !== document.body && depth < 4) {
+                const tag = parent.tagName;
+                if (tag === 'BUTTON' || tag === 'A' || parent.getAttribute('role') === 'button') {
+                  parent.style.setProperty('display', 'none', 'important');
+                  break;
+                }
+                parent = parent.parentElement;
+                depth++;
+              }
+            }
+          });
+
+          // Hide feed post view-all-comments links
+          document.querySelectorAll('div, span, a').forEach(el => {
+            if (el.children.length === 0) {
+              const txt = (el.textContent || '').trim().toLowerCase();
+              if (txt.includes('view all') && txt.includes('comments')) {
+                el.style.setProperty('display', 'none', 'important');
+                if (el.parentElement) {
+                  el.parentElement.style.setProperty('display', 'none', 'important');
+                }
+              }
+            }
+          });
+
+          // Hide comments list on detail pages/dialogs (li:not(:first-child) inside the comments container)
+          document.querySelectorAll('div[role="dialog"] ul > li:not(:first-child), main ul > li:not(:first-child)').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+          });
+        }
+      };
+      runIgChecks();
+      platformInterval = setInterval(runIgChecks, 500);
+    }
+
+    // 4. Reddit checks (Popular, All, Chat blocker & Shadow DOM styling)
+    if (hostname.includes('reddit.com') && settings.reddit && settings.reddit.enabled !== false) {
+      const rd = settings.reddit;
+      const runRedditChecks = () => {
+        const cleanPath = '/' + window.location.pathname.toLowerCase().split('/').filter(Boolean).join('/');
+        const isPopular = cleanPath === '/r/popular' || cleanPath.startsWith('/r/popular/');
+        const isAll = cleanPath === '/r/all' || cleanPath.startsWith('/r/all/');
+        const isHome = cleanPath === '/' || cleanPath === '/best' || cleanPath === '/hot' || cleanPath === '/new' || cleanPath === '/top' || cleanPath === '/rising';
+        const isNews = cleanPath === '/news' || cleanPath.startsWith('/news/');
+        const isExplore = cleanPath === '/explore' || cleanPath.startsWith('/explore/');
+        const isChatSubdomain = hostname === 'chat.reddit.com' || hostname.endsWith('.chat.reddit.com');
+        const isChatPath = cleanPath === '/chat' || cleanPath.startsWith('/chat/') || cleanPath === '/message' || cleanPath.startsWith('/message/');
+        const isChat = isChatSubdomain || isChatPath;
+
+        if (rd.popularAll && isPopular) {
+          document.documentElement.setAttribute('data-fs-rd-popular', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-rd-popular');
+        }
+
+        if (rd.popularAll && isAll) {
+          document.documentElement.setAttribute('data-fs-rd-all', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-rd-all');
+        }
+
+        if (rd.popularAll && isHome) {
+          document.documentElement.setAttribute('data-fs-rd-home', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-rd-home');
+        }
+
+        if (rd.chatDMs && isChat) {
+          document.documentElement.setAttribute('data-fs-rd-chat', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-fs-rd-chat');
+        }
+
+        // Shadow DOM style injection
+        const shadowHosts = document.querySelectorAll('shreddit-post-action-row, shreddit-post, shreddit-header, reddit-header-large, reddit-header, shreddit-app');
+        
+        let commentCSS = '';
+        if (rd.commentsSection) {
+          commentCSS = `
+            a[href*="/comments/"], 
+            [href*="/comments/"], 
+            faceplate-tracker[noun="comments"], 
+            faceplate-icon[name="comment"], 
+            faceplate-icon[name="comment-outline"], 
+            faceplate-icon[name*="comment"], 
+            a:has(faceplate-icon[name*="comment"]), 
+            button:has(faceplate-icon[name*="comment"]),
+            [data-testid="post-comment-button"], 
+            [aria-label*="comment"], 
+            [aria-label*="Comment"], 
+            [data-testid*="comment"],
+            faceplate-tracker:has(a[href*="/comments/"]),
+            faceplate-tracker:has([href*="/comments/"]),
+            [noun="comments"] {
+              display: none !important;
+            }
+          `;
+        }
+
+        let chatDMsCSS = '';
+        if (rd.chatDMs) {
+          chatDMsCSS = `
+            a[href*="chat"],
+            #chat-button,
+            [aria-label="Chat"],
+            [aria-label*="Chat"],
+            [aria-label*="chat"],
+            [data-testid="chat-button"],
+            iframe[src*="chat.reddit.com"],
+            a[href*="/message/inbox"],
+            a[href*="/message/compose"],
+            a[href*="/message/sent"],
+            a[href*="/message/"],
+            a[href*="/messages"],
+            a[href*="message"],
+            [aria-label*="Inbox"],
+            [aria-label*="inbox"],
+            [data-testid="inbox-button"],
+            faceplate-icon[name="chat"],
+            faceplate-icon[name="chat-outline"],
+            faceplate-icon[name*="chat"],
+            faceplate-icon[name="inbox"],
+            faceplate-icon[name="mail"],
+            faceplate-icon[name*="mail"],
+            faceplate-tracker:has(a[href*="chat"]),
+            faceplate-tracker:has(button[aria-label*="chat"]),
+            faceplate-tracker:has(button[aria-label*="Chat"]),
+            faceplate-tracker:has(a[href*="message"]),
+            faceplate-tracker:has(a[href*="inbox"]),
+            faceplate-tracker:has(a[href*="/message/inbox"]),
+            faceplate-tracker:has(button[aria-label*="Inbox"]),
+            faceplate-tracker:has(button[aria-label*="inbox"]),
+            button[aria-label*="chat"],
+            button[aria-label*="Chat"],
+            button[aria-label*="inbox"],
+            button[aria-label*="Inbox"] {
+              display: none !important;
+            }
+          `;
+        }
+
+        let promotedCSS = '';
+        if (rd.promoted) {
+          promotedCSS = `
+            a[href*="advertise"],
+            a[href*="advertising"],
+            a[href*="ads.reddit.com"],
+            faceplate-tracker[noun="advertise"],
+            faceplate-tracker[noun="advertising"],
+            [noun="advertise"],
+            [noun="advertising"] {
+              display: none !important;
+            }
+          `;
+        }
+
+        let searchCSS = '';
+        if (rd.search) {
+          searchCSS = `
+            reddit-search-large,
+            shreddit-search-input,
+            faceplate-search-input,
+            [role="search"],
+            input[placeholder*="Search"],
+            input[placeholder*="Find anything"],
+            input[name="q"],
+            form[action*="/search"],
+            faceplate-tracker[noun="search"],
+            faceplate-tracker[noun="search_bar"] {
+              display: none !important;
+            }
+          `;
+        }
+
+        const combinedShadowCSS = [commentCSS, chatDMsCSS, promotedCSS, searchCSS].filter(Boolean).join('\n');
+
+        if (combinedShadowCSS) {
+          shadowHosts.forEach(host => {
+            if (host && host.shadowRoot) {
+              let styleTag = host.shadowRoot.getElementById('focusshield-shadow-css');
+              if (!styleTag) {
+                styleTag = document.createElement('style');
+                styleTag.id = 'focusshield-shadow-css';
+                host.shadowRoot.appendChild(styleTag);
+              }
+              if (styleTag.textContent !== combinedShadowCSS) {
+                styleTag.textContent = combinedShadowCSS;
+              }
+            }
+          });
+        } else {
+          // Remove if disabled
+          shadowHosts.forEach(host => {
+            if (host && host.shadowRoot) {
+              const styleTag = host.shadowRoot.getElementById('focusshield-shadow-css');
+              if (styleTag) styleTag.remove();
+            }
+          });
+        }
+
+        if (rd.popularAll && (isPopular || isAll || isNews || isExplore)) {
+          let label = 'reddit.com/r/popular';
+          if (isAll) label = 'reddit.com/r/all';
+          else if (isNews) label = 'reddit.com/news';
+          else if (isExplore) label = 'reddit.com/explore';
+          injectDOMBlockScreen(label);
+          return;
+        }
+        if (rd.chatDMs && isChat) {
+          injectDOMBlockScreen(isChatSubdomain ? 'chat.reddit.com' : 'reddit.com/chat');
+          return;
+        }
+      };
+      runRedditChecks();
+      platformInterval = setInterval(runRedditChecks, 200);
+    }
+
+    // 5. TikTok checks (For You, Following, Live, Shop, Search, Upload redirection)
+    if (hostname.includes('tiktok.com') && settings.tiktok && settings.tiktok.enabled !== false) {
+      const tt = settings.tiktok;
+      const runTiktokChecks = () => {
+        const path = window.location.pathname.toLowerCase();
+        
+        if (tt.foryou && (path === '/' || path === '/foryou' || path === '/recommend' || path === '/explore')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/foryou')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (tt.following && path.startsWith('/following')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/following')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (tt.live && path.startsWith('/live')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/live')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (tt.shop && path.startsWith('/shop')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/shop')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (tt.search && path.startsWith('/search')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/search')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+        if (tt.upload && path.startsWith('/upload')) {
+          const blockedUrl = chrome.runtime.getURL('blocked.html') 
+            + '?site=' + encodeURIComponent('tiktok.com/upload')
+            + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+            + '&originalUrl=' + encodeURIComponent(window.location.href);
+          window.location.href = blockedUrl;
+          return;
+        }
+      };
+      runTiktokChecks();
+      platformInterval = setInterval(runTiktokChecks, 250);
+    }
+  }
+
+  function getPlatform(hostname) {
+    if (hostname.includes('youtube.com')) return 'youtube';
+    if (hostname.includes('facebook.com') || hostname.includes('messenger.com')) return 'facebook';
+    if (hostname.includes('instagram.com')) return 'instagram';
+    if (hostname.includes('reddit.com')) return 'reddit';
+    if (hostname.includes('tiktok.com')) return 'tiktok';
+    if (hostname.includes('twitter.com') || hostname.includes('x.com')) return 'twitter';
+    return null;
+  }
+
+  function generateCSS(settings) {
+    const selectors = [];
+    const hostname = window.location.hostname;
+    const platform = getPlatform(hostname);
+
+    if (!settings || !settings.masterToggle) return '';
+
+    if (platform === 'youtube') {
+      const yt = settings.youtube;
+      if (yt && yt.enabled !== false) {
+        if (yt.sidebar) {
+          selectors.push(
+            '#secondary', 
+            '#related', 
+            'ytd-watch-next-secondary-results-renderer', 
+            'ytd-compact-video-renderer'
+          );
+        }
+        if (yt.comments) {
+          selectors.push(
+            '#comments', 
+            'ytd-comments', 
+            'ytd-item-section-renderer[section-identifier="comment-item-section"]'
+          );
+        }
+        if (yt.feed) {
+          selectors.push(
+            'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer', 
+            'ytd-browse[page-subtype="home"] #primary', 
+            'ytd-browse[page-subtype="home"] #contents'
+          );
+        }
+        if (yt.shorts) {
+          selectors.push(
+            'ytd-reel-shelf-renderer',
+            'ytd-rich-shelf-renderer',
+            'ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts])',
+            'ytd-rich-section-renderer:has(a[href^="/shorts"])',
+            'ytd-rich-section-renderer:has(ytd-rich-shelf-renderer)',
+            'ytd-rich-section-renderer:has(ytd-reel-shelf-renderer)',
+            'ytd-guide-entry-renderer:has(a[href*="shorts"])',
+            'ytd-mini-guide-entry-renderer:has(a[href*="shorts"])',
+            'ytd-guide-entry-renderer:has(a[href="/shorts"])',
+            'ytd-mini-guide-entry-renderer:has(a[href="/shorts"])',
+            'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
+            'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
+            'ytd-guide-entry-renderer[aria-label="Shorts"]',
+            'ytd-mini-guide-entry-renderer[aria-label="Shorts"]',
+            'a[href*="/shorts/"]',
+            'a[href^="/shorts"]',
+            'ytd-shorts',
+            'ytd-reel-video-renderer',
+            '#shorts-container'
+          );
+        }
+        if (yt.autoplay) {
+          selectors.push(
+            '.ytp-autonav-toggle-button', 
+            '.ytp-upnext', 
+            '.ytp-upnext-autoplay-icon'
+          );
+        }
+      }
+    } 
+    else if (platform === 'facebook') {
+      const fb = settings.facebook;
+      if (fb && fb.enabled !== false) {
+        if (fb.feed) {
+          selectors.push(
+            '[role="feed"]', 
+            '[data-pagelet="FeedUnit"]', 
+            'div[id^="topnews_main_stream_"]', 
+            'div:has(> [role="feed"])', 
+            '[data-pagelet="GroupFeed"]',
+            'html[data-fs-fb-home="true"] [role="main"]',
+            'html[data-fs-fb-home="true"] [data-pagelet="GroupFeed"]'
+          );
+        }
+        if (fb.stories) {
+          selectors.push(
+            '[aria-label="Stories"]', 
+            '[data-pagelet="Stories"]', 
+            'div[aria-label*="Stories"]'
+          );
+        }
+        if (fb.notifications) {
+          selectors.push(
+            'a[href*="/notifications"]',
+            '[aria-label*="Notifications"]',
+            '[aria-label*="notifications"]'
+          );
+        }
+        if (fb.reels) {
+          selectors.push(
+            '[data-pagelet="Reels"]', 
+            '[aria-label="Reels"]', 
+            '[aria-label="reel"]', 
+            'div[aria-label*="Reels"]', 
+            'div[aria-label*="reels"]', 
+            'a[href*="/reels/"]', 
+            'a[href^="/reels/"]', 
+            'div:has(> [aria-label="Reels"])'
+          );
+        }
+        if (fb.messenger) {
+          selectors.push(
+            '[data-pagelet="ChatTab"]',
+            '[data-pagelet="chat_sidebar"]',
+            'div[role="grid"]:has([data-testid="chat_sidebar"])',
+            'a[href*="/messages/"]',
+            '[aria-label="Messenger"]',
+            '[aria-label="Chats"]',
+            'iframe[src*="messenger"]'
+          );
+        }
+        if (fb.comments) {
+          selectors.push(
+            'div[data-pagelet="CommentFeed"]',
+            'div[data-pagelet="CommentList"]',
+            '.comments-list',
+            'div[aria-label="Comment"]',
+            'div[aria-label*="comment"]',
+            'form[aria-label="Write a comment"]',
+            'form[aria-label*="comment"]',
+            'div:has(> form[aria-label*="comment"])'
+          );
+        }
+        if (fb.friends) {
+          selectors.push(
+            'a[href*="/friends/"]',
+            'a[href$="/friends"]',
+            'a[href*="/friends?"]',
+            'a[href*="/friends/requests"]',
+            'a[href*="/friends/suggestions"]',
+            '[data-pagelet="PyMK"]',
+            'div[aria-label*="People You May Know"]',
+            'div[aria-label*="People you may know"]'
+          );
+        }
+        if (fb.groups) {
+          selectors.push(
+            'a[href*="/groups/"]',
+            'a[href$="/groups"]',
+            'a[href*="/groups?"]'
+          );
+        }
+        if (fb.pages) {
+          selectors.push(
+            'a[href*="/pages/"]',
+            'a[href$="/pages"]',
+            'a[href*="/pages?"]'
+          );
+        }
+      }
+    } 
+    else if (platform === 'instagram') {
+      const ig = settings.instagram;
+      if (ig && ig.enabled !== false) {
+        if (ig.feed) {
+          selectors.push(
+            'html[data-fs-ig-home="true"] main section > div:first-child',
+            'html[data-fs-ig-home="true"] article'
+          );
+        }
+        if (ig.reels) {
+          selectors.push(
+            'a[href^="/reels"]',
+            'a[href^="/reel"]',
+            'a[href*="/reels/"]',
+            'a[href*="/reel/"]',
+            'a[aria-label*="Reels"]',
+            'a[aria-label*="reels"]',
+            'a:has([aria-label*="Reels"])',
+            'a:has([aria-label*="reels"])',
+            'div[role="button"]:has(svg[aria-label*="Reels"])',
+            'div[role="button"]:has(svg[aria-label*="reels"])',
+            'div[role="button"]:has([aria-label*="Reels"])',
+            'div[role="button"]:has([aria-label*="reels"])',
+            'svg[aria-label*="Reels"]',
+            'svg[aria-label*="reels"]'
+          );
+        }
+        if (ig.explore) {
+          selectors.push(
+            'a[href^="/explore"]',
+            'a[href*="/explore/"]',
+            'a[aria-label*="Explore"]',
+            'a[aria-label*="explore"]',
+            'a:has([aria-label*="Explore"])',
+            'a:has([aria-label*="explore"])',
+            'div[role="button"]:has(svg[aria-label*="Explore"])',
+            'div[role="button"]:has(svg[aria-label*="explore"])',
+            'div[role="button"]:has([aria-label*="Explore"])',
+            'div[role="button"]:has([aria-label*="explore"])',
+            'svg[aria-label*="Explore"]',
+            'svg[aria-label*="explore"]'
+          );
+        }
+        if (ig.stories) {
+          selectors.push(
+            'div:has(> [aria-label*="Stories"])',
+            'div:has(> [aria-label*="stories"])',
+            'main [role="menu"]',
+            'div[role="menu"]:has([aria-label*="Stories"])',
+            'div[role="menu"]:has([aria-label*="stories"])',
+            '[aria-label*="Stories"]',
+            '[aria-label*="stories"]',
+            'header [role="menuitem"]:first-child',
+            'ul:has(a[href*="/stories/"])',
+            'div:has(> ul:has(a[href*="/stories/"]))',
+            'a[href*="/stories/"]'
+          );
+        }
+
+        if (ig.shopping) {
+          selectors.push(
+            'a[href="/shop/"]',
+            'a[href*="/shop"]',
+            'a[href*="/shopping"]',
+            'a[aria-label*="Shop"]',
+            'a:has([aria-label*="Shop"])',
+            'a:has([aria-label*="shop"])',
+            'div[role="button"]:has(svg[aria-label*="Shop"])',
+            'div[role="button"]:has([aria-label*="Shop"])',
+            'svg[aria-label*="Shop"]'
+          );
+        }
+        if (ig.messages) {
+          selectors.push(
+            'a[href*="/direct"]',
+            'a[href*="direct"]',
+            'a[aria-label*="Direct"]',
+            'a[aria-label*="Messenger"]',
+            'a[aria-label*="Messages"]',
+            'a:has([aria-label*="Messenger"])',
+            'a:has([aria-label*="Direct"])',
+            'a:has([aria-label*="Messages"])',
+            'div[role="button"]:has(svg[aria-label*="Messenger"])',
+            'div[role="button"]:has(svg[aria-label*="Direct"])',
+            'div[role="button"]:has(svg[aria-label*="Messages"])',
+            'div[role="button"]:has([aria-label*="Messenger"])',
+            'div[role="button"]:has([aria-label*="Direct"])',
+            'div[role="button"]:has([aria-label*="Messages"])',
+            'svg[aria-label*="Messenger"]',
+            'svg[aria-label*="Direct"]',
+            'svg[aria-label*="Messages"]'
+          );
+        }
+        if (ig.comments) {
+          selectors.push(
+            'a:has(svg[aria-label*="Comment"])',
+            'a:has(svg[aria-label*="comment"])',
+            'button:has(svg[aria-label*="Comment"])',
+            'button:has(svg[aria-label*="comment"])',
+            'svg[aria-label*="Comment"]',
+            'svg[aria-label*="comment"]',
+            'form:has(textarea[placeholder*="comment"])',
+            'form:has(textarea[placeholder*="Comment"])',
+            'div[role="dialog"] ul > li:not(:first-child)',
+            'main ul > li:not(:first-child)'
+          );
+        }
+        if (ig.notifications) {
+          selectors.push(
+            'a[href*="notifications"]',
+            'a[href*="/notifications"]',
+            'a:has(svg[aria-label*="Activity"])',
+            'a:has(svg[aria-label*="Notifications"])',
+            'a:has(svg[aria-label*="Heart"])',
+            'a[aria-label*="Notifications"]',
+            'a[aria-label*="Activity"]',
+            'a:has([aria-label*="Notifications"])',
+            'a:has([aria-label*="Activity"])',
+            'a:has([aria-label*="Heart"])',
+            'div[role="button"]:has(svg[aria-label*="Notifications"])',
+            'div[role="button"]:has(svg[aria-label*="Activity"])',
+            'div[role="button"]:has(svg[aria-label*="Heart"])',
+            'div[role="button"]:has([aria-label*="Notifications"])',
+            'div[role="button"]:has([aria-label*="Activity"])',
+            'div[role="button"]:has([aria-label*="Heart"])',
+            'svg[aria-label*="Notifications"]',
+            'svg[aria-label*="Activity"]',
+            'svg[aria-label*="Heart"]'
+          );
+        }
+      }
+    } 
+    else if (platform === 'reddit') {
+      const rd = settings.reddit;
+      if (rd && rd.enabled !== false) {
+        if (rd.promoted) {
+          selectors.push(
+            'shreddit-ad-post',
+            '[data-ad-id]',
+            '.promotedlink',
+            'div.promoted',
+            '[data-promoted="true"]',
+            '[promotedlink]'
+          );
+        }
+        if (rd.communities) {
+          selectors.push(
+            '#communities-list',
+            '#subscribed-details-feed-list',
+            '#recent-details-feed-list',
+            'shreddit-sidebar #subscribed-details-feed-list',
+            'shreddit-sidebar #recent-details-feed-list',
+            'reddit-recent-pages',
+            'faceplate-expandable-section-helper:has(> details > summary > [noun="recent_communities_menu"])',
+            'faceplate-expandable-section-helper:has(> details > summary > [noun="communities_menu"])',
+            'faceplate-expandable-section-helper:has(#recent_communities_section)',
+            'faceplate-expandable-section-helper:has(#communities_section)',
+            'faceplate-expandable-section-helper:has(details[id="communities_section"])',
+            'faceplate-expandable-section-helper:has(details[id="recent_communities_section"])',
+            '#recent-communities-section'
+          );
+        }
+        if (rd.search) {
+          selectors.push(
+            'reddit-search-large',
+            'shreddit-search-input',
+            'faceplate-search-input',
+            '[role="search"]',
+            'input[placeholder*="Search"]',
+            'input[placeholder*="Find anything"]',
+            'input[name="q"]',
+            'form[action*="/search"]',
+            'faceplate-tracker[noun="search"]',
+            'faceplate-tracker[noun="search_bar"]'
+          );
+        }
+        if (rd.premium) {
+          selectors.push(
+            'a[href="/premium"]',
+            'a[href*="/premium"]',
+            '#reddit-premium-nav-button',
+            '[class*="premium"]',
+            '#premium-sidebar-card',
+            '.premium-banner',
+            '.premium-banner-outer',
+            'shreddit-sidebar-card:has(a[href*="premium"])',
+            'shreddit-sidebar-card:has(a[href*="premium_sign_up"])',
+            'shreddit-sidebar-card:has(a[href="/premium"])',
+            'div[id*="premium-card"]'
+          );
+        }
+        if (rd.trending) {
+          selectors.push(
+            '[class*="trending"]',
+            '#search-results-trending',
+            '[aria-label="Trending search queries"]',
+            'faceplate-tracker[data-click-id="trend"]',
+            '[noun="trending_searches"]',
+            '[noun="trending_searches_list"]',
+            'div[id*="trending-searches"]',
+            'shreddit-sidebar-card:has(faceplate-tracker[data-click-id="trend"])',
+            'shreddit-sidebar-card:has(a[href*="trend"])',
+            'shreddit-sidebar-card:has(a[href*="trending"])'
+          );
+        }
+        if (rd.popularAll) {
+          selectors.push(
+            'a[href="/r/popular"]',
+            'a[href="/r/all"]',
+            'a[href*="/r/popular"]',
+            'a[href*="/r/all"]',
+            'a[href^="/r/popular/"]',
+            'a[href^="/r/all/"]',
+            'a[href^="/r/popular?"]',
+            'a[href^="/r/all?"]',
+            'faceplate-tracker:has(a[href="/r/popular"])',
+            'faceplate-tracker:has(a[href="/r/all"])',
+            // Hide the feed on Popular page
+            'html[data-fs-rd-popular="true"] shreddit-feed',
+            'html[data-fs-rd-popular="true"] shreddit-post',
+            'html[data-fs-rd-popular="true"] main',
+            'html[data-fs-rd-popular="true"] #main-content',
+            // Hide the feed on All page
+            'html[data-fs-rd-all="true"] shreddit-feed',
+            'html[data-fs-rd-all="true"] shreddit-post',
+            'html[data-fs-rd-all="true"] main',
+            'html[data-fs-rd-all="true"] #main-content',
+            // Hide the feed on Home page
+            'html[data-fs-rd-home="true"] shreddit-feed',
+            'html[data-fs-rd-home="true"] shreddit-post',
+            'html[data-fs-rd-home="true"] main',
+            'html[data-fs-rd-home="true"] #main-content'
+          );
+        }
+        if (rd.commentsSection) {
+          selectors.push(
+            'shreddit-comment-tree',
+            '#comment-tree',
+            '.commentarea',
+            'shreddit-comment',
+            '#comments-area',
+            'shreddit-comments',
+            '#comments-container',
+            'div[data-testid="post-comments"]',
+            'div:has(> shreddit-comment-tree)',
+            'div:has(> shreddit-comments)',
+            '[noun="comments"]',
+            'shreddit-comment-tree-header',
+            'shreddit-comment-tree-ad',
+            'shreddit-comments-page-ad',
+            'div[data-testid="comment-list"]',
+            'shreddit-comment-limit-message',
+            'shreddit-post-action-row a[href*="/comments/"]',
+            'shreddit-post-action-row [href*="/comments/"]',
+            'a[href*="/comments/"]',
+            'faceplate-icon[name="comment"]',
+            'faceplate-icon[name="comment-outline"]',
+            'faceplate-icon[name*="comment"]',
+            'a:has(faceplate-icon[name*="comment"])',
+            'button:has(faceplate-icon[name*="comment"])',
+            'shreddit-post-action-row faceplate-tracker:has(a[href*="/comments/"])',
+            'shreddit-post-action-row faceplate-tracker:has([href*="/comments/"])',
+            'faceplate-tracker:has(a[href*="/comments/"])',
+            'faceplate-tracker:has([href*="/comments/"])',
+            '[data-testid="post-comment-button"]',
+            '[aria-label*="comment"]',
+            '[aria-label*="Comment"]',
+            '[data-testid*="comment"]',
+            // Feed Post Comment Count/Icon targets
+            'shreddit-post a[href*="/comments/"]',
+            'shreddit-post [href*="/comments/"]',
+            'shreddit-post faceplate-tracker:has(a[href*="/comments/"])',
+            'shreddit-post faceplate-tracker:has([href*="/comments/"])',
+            'shreddit-post faceplate-icon[name="comment"]',
+            'shreddit-post faceplate-icon[name="comment-outline"]',
+            'shreddit-post faceplate-icon[name*="comment"]',
+            'shreddit-post [data-testid*="comment"]',
+            'shreddit-post [aria-label*="comment"]',
+            'shreddit-post [aria-label*="Comment"]'
+          );
+        }
+        if (rd.chatDMs) {
+          selectors.push(
+            'a[href*="chat"]',
+            '#chat-button',
+            '[aria-label="Chat"]',
+            '[data-testid="chat-button"]',
+            'iframe[src*="chat.reddit.com"]',
+            'a[href*="/message/inbox"]',
+            'a[href*="/message/compose"]',
+            'a[href*="/message/sent"]',
+            'a[href*="/message/"]',
+            'a[href*="/messages"]',
+            'a[href*="message"]',
+            '[aria-label*="Inbox"]',
+            '[aria-label*="inbox"]',
+            '[data-testid="inbox-button"]',
+            '[aria-label*="Chat"]',
+            '[aria-label*="chat"]',
+            'html[data-fs-rd-chat="true"] shreddit-app',
+            'html[data-fs-rd-chat="true"] main',
+            'html[data-fs-rd-chat="true"] #main-content',
+            'faceplate-icon[name="chat"]',
+            'faceplate-icon[name="chat-outline"]',
+            'faceplate-icon[name*="chat"]',
+            'faceplate-tracker:has(a[href*="chat"])',
+            'faceplate-tracker:has(button[aria-label*="chat"])',
+            'faceplate-tracker:has(button[aria-label*="Chat"])',
+            'faceplate-tracker:has(a[href*="message"])',
+            'faceplate-tracker:has(a[href*="inbox"])',
+            'faceplate-tracker:has(a[href*="/message/inbox"])',
+            'faceplate-tracker:has(button[aria-label*="Inbox"])',
+            'faceplate-tracker:has(button[aria-label*="inbox"])',
+            'a[href*="reddit.com/chat"]',
+            // Header specific targets
+            'shreddit-header a[href*="chat"]',
+            'shreddit-header a[href*="message"]',
+            'shreddit-header button[aria-label*="chat"]',
+            'shreddit-header button[aria-label*="Chat"]',
+            'shreddit-header button[aria-label*="inbox"]',
+            'shreddit-header button[aria-label*="Inbox"]',
+            'shreddit-header faceplate-tracker:has(a[href*="chat"])',
+            'shreddit-header faceplate-tracker:has(a[href*="message"])',
+            'shreddit-header faceplate-tracker:has(button[aria-label*="chat"])',
+            'shreddit-header faceplate-tracker:has(button[aria-label*="Chat"])',
+            'shreddit-header faceplate-tracker:has(button[aria-label*="inbox"])',
+            'shreddit-header faceplate-tracker:has(button[aria-label*="Inbox"])',
+            'a[href^="https://www.reddit.com/chat"]',
+            'a[href^="https://chat.reddit.com"]',
+            'a[href^="https://www.reddit.com/message"]',
+            'button[aria-label*="chat"]',
+            'button[aria-label*="Chat"]',
+            'button[aria-label*="inbox"]',
+            'button[aria-label*="Inbox"]'
+          );
+        }
+      }
+    }
+    else if (platform === 'tiktok') {
+      const tt = settings.tiktok;
+      if (tt && tt.enabled !== false) {
+        if (tt.foryou) {
+          selectors.push(
+            '[data-e2e="recommend-list-item-container"]',
+            'div:has(> [data-e2e="recommend-list-item-container"])',
+            'a[href*="/foryou"]',
+            'a[href*="foryou"]',
+            '[class*="DivVideoFeedV2"]',
+            '[class*="RecommendList"]'
+          );
+        }
+        if (tt.following) {
+          selectors.push(
+            '[data-e2e="following-list-item-container"]',
+            '[data-e2e="following-nav"]',
+            'a[href*="/following"]',
+            'a[href*="following"]',
+            '[class*="DivFollowingFeed"]'
+          );
+        }
+        if (tt.suggested) {
+          selectors.push(
+            '[data-e2e="suggested-accounts"]',
+            '[data-e2e="sidebar-suggested-list"]',
+            '[class*="UserList"]',
+            '[class*="SideBarUser"]',
+            'div:has(> [data-e2e="suggested-accounts"])'
+          );
+        }
+        if (tt.live) {
+          selectors.push(
+            '[data-e2e="live-panel"]',
+            '[data-e2e="live-side-nav"]',
+            'a[href*="/live"]',
+            'a[href*="live"]',
+            '[class*="LiveAnchor"]'
+          );
+        }
+        if (tt.shop) {
+          selectors.push(
+            '[data-e2e="shop-tab"]',
+            'a[href*="/shop"]',
+            'a[href*="shop"]',
+            '[class*="ShopEntry"]'
+          );
+        }
+        if (tt.badges) {
+          selectors.push(
+            '[data-e2e="notification-badge"]',
+            '[data-e2e="badge-count"]',
+            '[class*="BadgeCount"]'
+          );
+        }
+        if (tt.comments) {
+          selectors.push(
+            '[data-e2e="comment-icon"]',
+            '[data-e2e*="comment-icon"]',
+            '[class*="comment"]',
+            '[class*="Comment"]',
+            '[aria-label*="comment"]',
+            '[aria-label*="Comment"]',
+            '[data-e2e="comment-container"]',
+            '[class*="CommentContainer"]',
+            '[class*="CommentList"]',
+            '[data-e2e="comment-list"]',
+            'div:has(> [data-e2e="comment-container"])'
+          );
+        }
+        if (tt.search) {
+          selectors.push(
+            '[data-e2e="search-input"]',
+            '[data-e2e="search-box"]',
+            'input[placeholder*="Search"]',
+            'input[placeholder*="search"]',
+            '[aria-label="Search"]',
+            '[aria-label*="search"]',
+            'form[action*="/search"]',
+            'div:has(> [data-e2e="search-input"])'
+          );
+        }
+        if (tt.upload) {
+          selectors.push(
+            '[data-e2e="upload-icon"]',
+            '[data-e2e="upload-link"]',
+            '[data-e2e="upload-button"]',
+            'a[href*="/upload"]',
+            'a[href*="upload"]',
+            'a:has([data-e2e="upload-icon"])'
+          );
+        }
+      }
+    } 
+    else if (platform === 'twitter') {
+      const tw = settings.twitter;
+      if (tw && tw.enabled !== false) {
+        if (tw.trending) {
+          selectors.push(
+            '[aria-label="Timeline: Trending now"]',
+            '[aria-label="Timeline: What’s happening"]',
+            '[aria-label="Timeline: What\'s happening"]',
+            '[data-testid="trend"]'
+          );
+        }
+        if (tw.whotofollow) selectors.push('[aria-label="Who to follow"]', '[data-testid="UserCell"]');
+        if (tw.promoted) selectors.push('[data-testid="placementTracking"]', '[data-testid="promotedTweet"]');
+        if (tw.spaces) selectors.push('[aria-label="Spaces"]');
+        if (tw.messages) {
+          selectors.push(
+            '[data-testid="DMDrawer"]',
+            'a[href="/messages"]',
+            'a[href*="/messages"]',
+            '[data-testid="AppTabBar_DirectMessage_Link"]',
+            'a[href="/chat"]',
+            'a[href*="/chat"]',
+            '[data-testid="dm"]',
+            '[data-testid="DMButton"]',
+            '[aria-label="Direct messages"]',
+            '[aria-label="Direct Messages"]',
+            '[aria-label="Messages"]',
+            '[data-testid="sendDMFromProfile"]',
+            '[data-testid="profile-action-message"]',
+            '[aria-label="Message"]',
+            'button[aria-label="Message"]',
+            'a[aria-label="Message"]',
+            'button:has([data-testid="DMDrawer"])',
+            'div:has(> [data-testid="DMDrawer"])',
+            '[data-testid="hoverCard"] [data-testid="sendDMFromProfile"]',
+            '[data-testid="hoverCard"] [aria-label="Message"]',
+            '[data-testid="hoverCard"] [data-testid="dm"]'
+          );
+        }
+        if (tw.explore || tw.feed) {
+          selectors.push(
+            'a[href="/explore"]',
+            '[data-testid="AppTabBar_Explore_Link"]'
+          );
+        }
+        if (tw.communities) {
+          selectors.push(
+            'a[href*="/communities"]',
+            '[data-testid="AppTabBar_Communities_Link"]'
+          );
+        }
+        if (tw.notifications) {
+          selectors.push(
+            'a[href="/notifications"]',
+            '[data-testid="AppTabBar_Notifications_Link"]'
+          );
+        }
+        if (tw.premium) {
+          selectors.push(
+            'a[href="/settings/premium"]',
+            '[data-testid="AppTabBar_Premium_Link"]',
+            'a[href="/i/premium_sign_up"]',
+            '[aria-label="Subscribe to Premium"]',
+            'aside[role="complementary"] a[href="/settings/premium"]',
+            'svg[data-testid="icon-verified"]',
+            'svg[aria-label="Verified account"]',
+            'span:has(> svg[data-testid="icon-verified"])'
+          );
+        }
+        if (tw.feed) {
+          selectors.push(
+            'html[data-fs-tw-home="true"] [data-testid="primaryColumn"] section[role="region"]',
+            'html[data-fs-tw-home="true"] [data-testid="primaryColumn"] div[style*="min-height"]'
+          );
+        }
+      }
+    }
+
+    if (selectors.length === 0) return '';
+    return selectors.map(s => `${s} { display: none !important; }`).join('\n');
+  }
+
+  function injectCSS(css) {
+    if (!css || css.trim() === '') return;
+    
+    const existing = document.getElementById('focusshield-css');
+    if (existing) existing.remove();
+    
+    const style = document.createElement('style');
+    style.id = 'focusshield-css';
+    style.textContent = css;
+    
+    const target = document.head || document.documentElement;
+    if (target) {
+      target.appendChild(style);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        (document.head || document.documentElement).appendChild(style);
+      });
+    }
+  }
+
+  function removeCSS() {
+    const style = document.getElementById('focusshield-css');
+    if (style) style.remove();
+  }
+
+  function applyBlocking(settings) {
+    runPlatformBackgroundChecks(settings);
+
+    if (!settings || !settings.masterToggle) {
+      removeCSS();
+      return;
+    }
+
+    const hostname = window.location.hostname;
+    const platform = getPlatform(hostname);
+
+    if (platform) {
+      if (settings[platform] && settings[platform].blockFullSite === true) {
+        const blockedUrl = chrome.runtime.getURL('blocked.html') 
+          + '?site=' + encodeURIComponent(window.location.hostname)
+          + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+          + '&originalUrl=' + encodeURIComponent(window.location.href);
+        window.location.href = blockedUrl;
+        return;
+      }
+
+      const isEnabled = settings[platform] && settings[platform].enabled !== false;
+      if (isEnabled) {
+        // Direct page load check for Shorts on YouTube
+        if (platform === 'youtube' && settings.youtube && settings.youtube.shorts) {
+          if (window.location.pathname.startsWith('/shorts')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=youtube.com/shorts'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+        }
+
+        // Direct page load check for Reels, Messenger, Friends, Groups, Pages on Facebook
+        if (platform === 'facebook' && settings.facebook) {
+          const fb = settings.facebook;
+          if (fb.reels && (window.location.pathname.startsWith('/reels') || window.location.pathname.startsWith('/reel'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=facebook.com/reels'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (fb.messenger && window.location.pathname.startsWith('/messages')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=facebook.com/messages'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (fb.messenger && hostname.includes('messenger.com')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=messenger.com'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (fb.friends && (window.location.pathname.startsWith('/friends') || window.location.pathname.startsWith('/friends/'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=facebook.com/friends'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (fb.groups && (window.location.pathname.startsWith('/groups') || window.location.pathname.startsWith('/groups/'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=facebook.com/groups'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (fb.pages && (window.location.pathname.startsWith('/pages') || window.location.pathname.startsWith('/pages/'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=facebook.com/pages'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+        }
+
+        // Direct page load check for Twitter/X sections (coupled explore/feed)
+        if (platform === 'twitter' && settings.twitter) {
+          const tw = settings.twitter;
+          if (tw.messages && (window.location.pathname.startsWith('/messages') || window.location.pathname.startsWith('/chat'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=x.com/messages'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          const isExploreOrSearch = window.location.pathname.startsWith('/explore') || 
+                                    window.location.pathname.startsWith('/search') || 
+                                    window.location.pathname.startsWith('/trends') || 
+                                    window.location.pathname.includes('/trends') || 
+                                    window.location.pathname.startsWith('/i/trends');
+          if ((tw.explore || tw.feed) && isExploreOrSearch) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=x.com/explore'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+        }
+
+        // Direct page load check for Instagram sections
+        if (platform === 'instagram' && settings.instagram) {
+          const ig = settings.instagram;
+          const path = window.location.pathname.toLowerCase();
+          const isHome = path === '/' || path === '/home';
+          if (ig.feed && isHome) {
+            document.documentElement.setAttribute('data-fs-ig-home', 'true');
+          }
+          if (ig.reels && (path.startsWith('/reels') || path.startsWith('/reel'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=instagram.com/reels'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (ig.explore && path.startsWith('/explore')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=instagram.com/explore'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (ig.shopping && (path.startsWith('/shop') || path.startsWith('/shopping'))) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=instagram.com/shop'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (ig.messages && path.startsWith('/direct')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=instagram.com/direct'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (ig.stories && path.startsWith('/stories')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=instagram.com/stories'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+        }
+
+        // Direct page load check for Reddit sections
+        if (platform === 'reddit' && settings.reddit) {
+          const rd = settings.reddit;
+          const cleanPath = '/' + window.location.pathname.toLowerCase().split('/').filter(Boolean).join('/');
+          const isPopular = cleanPath === '/r/popular' || cleanPath.startsWith('/r/popular/');
+          const isAll = cleanPath === '/r/all' || cleanPath.startsWith('/r/all/');
+          const isHome = cleanPath === '/' || cleanPath === '/best' || cleanPath === '/hot' || cleanPath === '/new' || cleanPath === '/top' || cleanPath === '/rising';
+          const isNews = cleanPath === '/news' || cleanPath.startsWith('/news/');
+          const isExplore = cleanPath === '/explore' || cleanPath.startsWith('/explore/');
+          const isChatSubdomain = hostname === 'chat.reddit.com' || hostname.endsWith('.chat.reddit.com');
+          const isChatPath = cleanPath === '/chat' || cleanPath.startsWith('/chat/') || cleanPath === '/message' || cleanPath.startsWith('/message/');
+          const isChat = isChatSubdomain || isChatPath;
+
+          if (rd.popularAll && isPopular) {
+            document.documentElement.setAttribute('data-fs-rd-popular', 'true');
+          }
+          if (rd.popularAll && isAll) {
+            document.documentElement.setAttribute('data-fs-rd-all', 'true');
+          }
+          if (rd.popularAll && isHome) {
+            document.documentElement.setAttribute('data-fs-rd-home', 'true');
+          }
+          if (rd.chatDMs && isChat) {
+            document.documentElement.setAttribute('data-fs-rd-chat', 'true');
+          }
+
+          if (rd.popularAll && (isPopular || isAll || isNews || isExplore)) {
+            let label = 'reddit.com/r/popular';
+            if (isAll) label = 'reddit.com/r/all';
+            else if (isNews) label = 'reddit.com/news';
+            else if (isExplore) label = 'reddit.com/explore';
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=' + encodeURIComponent(label)
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (rd.chatDMs && isChat) {
+            injectDOMBlockScreen(isChatSubdomain ? 'chat.reddit.com' : 'reddit.com/chat');
+            return;
+          }
+        }
+
+        // Direct page load check for TikTok sections
+        if (platform === 'tiktok' && settings.tiktok) {
+          const tt = settings.tiktok;
+          const path = window.location.pathname.toLowerCase();
+          
+          if (tt.foryou && (path === '/' || path === '/foryou' || path === '/recommend' || path === '/explore')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/foryou'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (tt.following && path.startsWith('/following')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/following'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (tt.live && path.startsWith('/live')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/live'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (tt.shop && path.startsWith('/shop')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/shop'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (tt.search && path.startsWith('/search')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/search'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+          if (tt.upload && path.startsWith('/upload')) {
+            const blockedUrl = chrome.runtime.getURL('blocked.html') 
+              + '?site=tiktok.com/upload'
+              + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+              + '&originalUrl=' + encodeURIComponent(window.location.href);
+            window.location.href = blockedUrl;
+            return;
+          }
+        }
+
+        const css = generateCSS(settings);
+        injectCSS(css);
+      } else {
+        removeCSS();
+      }
+    } else {
+      // Check custom sites list
+      const isCustomSite = settings.customSites && settings.customSites.some(site => {
+        if (site.enabled === false) return false;
+        const domain = site.domain.toLowerCase();
+        return hostname === domain || hostname.endsWith('.' + domain);
+      });
+
+      if (isCustomSite) {
+        // Redirect custom sites to blocked.html page
+        const blockedUrl = chrome.runtime.getURL('blocked.html') 
+          + '?site=' + encodeURIComponent(window.location.hostname)
+          + '&returnUrl=' + encodeURIComponent(document.referrer || '')
+          + '&originalUrl=' + encodeURIComponent(window.location.href);
+        window.location.href = blockedUrl;
+      }
+    }
+  }
+
+  // ON PAGE LOAD: Get settings and apply immediately
+  chrome.storage.local.get(null, (result) => {
+    const merged = mergeWithDefaults(result);
+    applyBlocking(merged);
+  });
+
+  // MESSAGE LISTENER: Listen for settings changes from popup
+  chrome.runtime.onMessage.addListener(
+    (message, sender, sendResponse) => {
+      if (message.type === 'SETTINGS_UPDATED') {
+        const merged = mergeWithDefaults(message.settings);
+        applyBlocking(merged);
+      }
+      if (message.type === 'MASTER_OFF') {
+        removeCSS();
+        runPlatformBackgroundChecks(null);
+      }
+    }
+  );
+
+})();
